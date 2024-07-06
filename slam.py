@@ -15,11 +15,22 @@ disp = Display(W, H)     # create a display object with specified width and heig
 class FeatureExtractor(object):
     def __init__(self):
         self.orb = cv2.ORB_create(100)
+        self.bf = cv2.BFMatcher()
+        self.last = None
 
     def extract(self, img):
+        feats = cv2.goodFeaturesToTrack(np.mean(img, axis = 2).astype(np.uint8), 3000, qualityLevel=0.05, minDistance=3)
+        kps = [cv2.KeyPoint(x=f[0][0], y=f[0][1], size=20) for f in feats]
+        kps, des = self.orb.compute(img, kps)
 
-        feats = cv2.goodFeaturesToTrack(np.mean(img, axis = 2).astype(np.uint8), 3000, qualityLevel=0.099, minDistance=3)
-        return feats
+        if self.last is not None:
+            matches = self.bf.match(des, self.last['des'])
+            print(matches)
+
+        self.last = {'kps': kps, 'des': des}
+                
+
+        return kps, des
 
 
 # create an instance of the FeatureExtractor class
@@ -28,10 +39,10 @@ fe = FeatureExtractor()
 
 def process_frame(img):
     img = cv2.resize(img, (W, H))  # Resize the cv2 frame to the specified width and height
-    kp = fe.extract(img)
+    kps, des = fe.extract(img)
 
-    for f in kp: 
-        u, v = map(lambda x: int(round(x)), f[0]) # Extract and round the position coordinate of each keypoint
+    for p in kps: 
+        u, v = map(lambda x: int(round(x)), p.pt) # Extract and round the position coordinate of each keypoint
         cv2.circle(img, (u,v), color=(0,255,0), radius = 3) # Draw a circle at each keypoint location
     disp.paint(img) # Display the image with keypoints marked
 
