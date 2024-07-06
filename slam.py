@@ -2,6 +2,7 @@
 import time
 import cv2
 from display import Display
+from extractor import Extractor
 import numpy as np
 
 # Specify the width and height for the display window, which is equal to 1/4 the resolution of the screen
@@ -11,39 +12,22 @@ H = 1964 // 4
 disp = Display(W, H)     # create a display object with specified width and height
 
 
-# Custom feature detector for ORB for more distributed features
-class FeatureExtractor(object):
-    def __init__(self):
-        self.orb = cv2.ORB_create(100)
-        self.bf = cv2.BFMatcher()
-        self.last = None
-
-    def extract(self, img):
-        feats = cv2.goodFeaturesToTrack(np.mean(img, axis = 2).astype(np.uint8), 3000, qualityLevel=0.05, minDistance=3)
-        kps = [cv2.KeyPoint(x=f[0][0], y=f[0][1], size=20) for f in feats]
-        kps, des = self.orb.compute(img, kps)
-
-        if self.last is not None:
-            matches = self.bf.match(des, self.last['des'])
-            print(matches)
-
-        self.last = {'kps': kps, 'des': des}
-                
-
-        return kps, des
-
-
-# create an instance of the FeatureExtractor class
-fe = FeatureExtractor()
+# create an instance of the Extractor class
+fe = Extractor()
 
 
 def process_frame(img):
     img = cv2.resize(img, (W, H))  # Resize the cv2 frame to the specified width and height
-    kps, des = fe.extract(img)
+    matches = fe.extract(img)
 
-    for p in kps: 
-        u, v = map(lambda x: int(round(x)), p.pt) # Extract and round the position coordinate of each keypoint
-        cv2.circle(img, (u,v), color=(0,255,0), radius = 3) # Draw a circle at each keypoint location
+    print("%d matches" % (len(matches)))
+    
+    for pt1, pt2 in matches:
+        u1, v1 = map(lambda x: int(round(x)), pt1)
+        u2, v2 = map(lambda x: int(round(x)), pt2)
+        cv2.circle(img, (u1, v1), color=(0,255,0), radius=3)
+        cv2.line(img, (u1, v1), (u2, v2), color=(255,0,0))
+
     disp.paint(img) # Display the image with keypoints marked
 
 
