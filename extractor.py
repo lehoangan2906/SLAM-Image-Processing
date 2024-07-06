@@ -3,14 +3,25 @@ import time
 import cv2
 
 from skimage.measure import ransac
+from skimage.transform import EssentialMatrixTransform
 from skimage.transform import FundamentalMatrixTransform
 
+# turn [[x, y]] -> [[x, y, 1]]
+def add_ones(x):
+    return np.concatenate([x, np.ones((x.shape[0], 1))], axis=1)
+
 class Extractor(object):
-    def __init__(self):
+    def __init__(self, K):
         self.orb = cv2.ORB_create()
         self.bf = cv2.BFMatcher(cv2.NORM_HAMMING)
         self.last = None
+        self.K = K
+        self.Kinv = np.linalg.inv(self.K)
 
+    def denormalize(self, pt):
+        ret = np.dot(self.K, np.array([pt[0], pt[1], 1.0]).T)
+        return int(round(ret[0])), int(round(ret[1]))
+    
     def extract(self, img):
         # Detection
         feats = cv2.goodFeaturesToTrack(np.mean(img, axis=2).astype(np.uint8), 3000, qualityLevel=0.01, minDistance=3)
@@ -32,6 +43,11 @@ class Extractor(object):
         # Filter
         if len(ret) > 0:
             ret = np.array(ret)
+            
+            # Normalize coors: subtract to move to 0
+            ret[:, 0, :] = np.dot(self.Kinv, add_ones(ret[:, 0, :]).T).T[:, 0:2]
+            ret[:, 1, :] = np.dot(self.Kinv, add_ones(ret[:, 1, :]).T).T[:, 0:2]
+
             print(ret.shape)
 
             model, inliers = ransac((ret[:,0], ret[:,1]),
@@ -41,6 +57,8 @@ class Extractor(object):
                                     max_trials=100)
 
             ret = ret[inliers]
+            
+            print(np.linalg.svd(model.params))
 
         # Return
         self.last = {'kps': kps, 'des': des}
